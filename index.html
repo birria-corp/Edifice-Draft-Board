@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edifice Draft Board</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#08130e">
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+const firebaseConfig={apiKey:"AIzaSyCrTmJNohK-7_t2BHx70HA6AfLmZyryLUY",authDomain:"zeptrack-f8720.firebaseapp.com",projectId:"zeptrack-f8720",storageBucket:"zeptrack-f8720.firebasestorage.app",messagingSenderId:"791166858370",appId:"1:791166858370:web:9ccf77cdad85cb3689b09b"};
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getFirestore(app);
+const provider=new GoogleAuthProvider();
+window._signIn=async()=>{try{await signInWithPopup(auth,provider)}catch(e){console.error(e)}};
+window._signOut=async()=>{try{await signOut(auth)}catch(e){console.error(e)}};
+window._syncNow=async()=>{const u=window._authUser;if(!u)return;await runSync(u.uid)};
+async function runSync(uid){
+  const ref=doc(db,'users',uid,'data','EDB_state');
+  const local=localStorage.getItem('EDB_state');
+  try{
+    const snap=await getDoc(ref);
+    if(snap.exists()){
+      const remote=snap.data().payload;
+      if(remote&&remote!==local){
+        const rl=JSON.parse(remote),ll=local?JSON.parse(local):null;
+        const rt=rl?.ts||0,lt=ll?.ts||0;
+        if(rt>lt){
+          const use=confirm('Cloud save is newer. Load cloud version?\n\nOK = Load cloud  |  Cancel = Keep local');
+          if(use){localStorage.setItem('EDB_state',remote);if(window._reloadAppState)window._reloadAppState();window._showToast&&window._showToast('Loaded cloud save');return}
+        }
+      }
+    }
+    const payload=local||JSON.stringify({});
+    await setDoc(ref,{payload});
+    window._showToast&&window._showToast('Synced to cloud');
+  }catch(e){console.error(e);window._showToast&&window._showToast('Sync failed')}
+}
+onAuthStateChanged(auth,user=>{
+  window._authUser=user||null;
+  document.dispatchEvent(new CustomEvent('authChanged'));
+  if(user)runSync(user.uid);
+});
+</script>
+<style>
+:root{--bg:#08130e;--panel:#10261c;--panel2:#163323;--line:#315742;--text:#f1fff5;--muted:#9dc4aa;--green:#42c86c;--blue:#5ea5ff;--red:#ef6a72;--gold:#efc85a}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(135deg,#07110c,#112a1d);font:14px ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text)}
+/* Topbar */
+#topbar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:#061009;border-bottom:1px solid #1e4028;font-size:13px;flex-wrap:wrap}
+#topbar .tb-title{font-weight:800;font-size:15px;color:#a8e5bd;margin-right:auto}
+#topbar button{background:#163323;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12px}
+#topbar button:hover{background:#1f4a30}
+#topbar .tb-email{color:var(--muted);font-size:12px}
+/* Modal overlay */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-box{background:#0f2318;border:1px solid var(--line);border-radius:12px;padding:24px;min-width:280px;max-width:380px;width:90%}
+.modal-box h3{margin:0 0 16px;font-size:16px;color:var(--text)}
+.modal-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:13px}
+.modal-row .mLabel{color:var(--muted)}
+.modal-btns{display:flex;gap:8px;flex-wrap:wrap}
+.modal-btns button,.modal-close{background:#163323;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer;font:inherit;font-size:13px}
+.modal-btns button:hover,.modal-close:hover{background:#1f4a30}
+.modal-close{margin-top:16px;width:100%}
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a3928;border:1px solid var(--green);color:#d7ffe5;padding:10px 20px;border-radius:8px;font-size:13px;z-index:2000;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.show{opacity:1}
+/* App */
+header{padding:24px max(20px,calc((100vw - 1460px)/2));background:#0a1a11;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:30px}header p{margin:6px 0 0;color:var(--muted)}
+main{max-width:1460px;margin:auto;padding:20px}
+.summary,.settings{display:grid;gap:12px}
+.summary{grid-template-columns:repeat(4,minmax(130px,1fr));margin-bottom:16px}
+.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:11px}
+.card{padding:13px 15px}.card span{color:var(--muted);font-size:11px;text-transform:uppercase}
+.card strong{display:block;font-size:25px;margin-top:4px}
+.tabs,.toolbar,.rowbuttons{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 16px}
+.tab,.filter,.action,select,input,textarea{font:inherit}
+.tab,.filter,.action{color:var(--text);background:#1a3928;border:1px solid var(--line);border-radius:7px;padding:9px 12px;font-weight:750;cursor:pointer}
+.tab.active,.filter.active{background:var(--green);border-color:var(--green);color:#082210}
+.action.undo{background:#294562}.action.reset,.tool-link{margin-left:auto}
+.panel h2{font-size:16px;padding:14px 16px;margin:0;border-bottom:1px solid var(--line)}
+.inside{padding:14px}.tablewrap{max-height:calc(100vh - 320px);overflow:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{position:sticky;top:0;background:#183726;color:#d5f2dd;text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}
+th.sort{cursor:pointer}td{padding:9px 8px;border-bottom:1px solid #22432f;vertical-align:top}
+tr:hover{background:#193725}.rank,.money{text-align:right;font-variant-numeric:tabular-nums}
+.pos{font-weight:800;color:#a9e5ba}.notes{max-width:330px;color:#c9ddcf;font-size:12px;line-height:1.3}
+.zzz{background:var(--blue);color:#061a34;border-radius:5px;font-size:10px;font-weight:900;padding:3px 5px;margin-left:5px}
+.taken{background:#63333a;color:#ffe6e8}.picked{background:#176340;color:#d7ffe5}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px}
+.group{margin-bottom:14px}.group h3{margin:0 0 5px;color:var(--muted);font-size:11px;text-transform:uppercase}
+.slot{padding:9px 0;border-bottom:1px solid #294d37}
+.slot small,.help{display:block;color:var(--muted);line-height:1.45}
+.empty{color:#70937b;font-style:italic}
+.slot select,.slot input,.setting-grid input,.keeper-row input,textarea{width:100%;background:#09170f;color:white;border:1px solid #446d50;border-radius:6px;padding:8px;margin-top:5px}
+.settings{grid-template-columns:1fr 1fr}.setting-grid{display:grid;grid-template-columns:1fr 160px;align-items:center;gap:8px;margin-bottom:7px}
+.section-label{font-size:12px;color:#a8e5bd;text-transform:uppercase;margin:16px 0 8px}
+.keeper-row{display:grid;grid-template-columns:1fr 54px 54px 76px auto;gap:6px;margin-bottom:6px}
+.best-grid{display:grid;grid-template-columns:repeat(5,minmax(175px,1fr));gap:12px}
+.best-card{padding:12px}.best-card h3{margin:0 0 8px;color:#b9e9c8}
+.best-row{padding:8px 0;border-bottom:1px solid #284934}.best-row:last-child{border:0}
+.hidden{display:none}
+@media(max-width:1040px){.settings,.layout{grid-template-columns:1fr}.best-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.summary{grid-template-columns:1fr 1fr}.best-grid{grid-template-columns:1fr}.keeper-row{grid-template-columns:1fr 42px 42px 64px auto}.setting-grid{grid-template-columns:1fr 115px}}
+</style>
+</head><body>
+
+<div id="topbar">
+  <span class="tb-title">Edifice Draft Board</span>
+  <button onclick="window._openSettings()">&#9881;</button>
+  <span id="tb-auth"></span>
+</div>
+
+<div id="settingsModal" class="modal-overlay">
+  <div class="modal-box">
+    <h3>Settings</h3>
+    <div class="modal-row"><span class="mLabel">Font Size</span><div class="modal-btns"><button onclick="window._fsDown()">A-</button><button onclick="window._fsUp()">A+</button></div></div>
+    <div class="modal-row"><span class="mLabel">Version <span id="versionLabel">1.0</span></span><div class="modal-btns"><button onclick="window._checkVersion()">Check</button></div></div>
+    <div class="modal-row"><span class="mLabel">Data</span><div class="modal-btns"><button onclick="window._exportData()">Export JSON</button><button onclick="window._triggerImport()">Import JSON</button></div></div>
+    <button class="modal-close" onclick="window._closeSettings()">Close</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<header><h1>Edifice Draft Board</h1><p>12-team baseball keeper auction board with position eligibility, roster slots, scoring-aware values, and future-season imports.</p></header>
+<main>
+  <section class="summary">
+    <div class="card"><span>Budget remaining</span><strong id="budget"></strong></div>
+    <div class="card"><span>Rostered</span><strong id="count"></strong></div>
+    <div class="card"><span>Open slots</span><strong id="slots"></strong></div>
+    <div class="card"><span>Available</span><strong id="shown"></strong></div>
+  </section>
+  <nav class="tabs" id="tabs"></nav>
+  <section id="view"></section>
+</main>
+<input id="file" class="hidden" type="file" accept="application/json,.json">
+
+<script>
+const APP_VERSION='1.0';
+const LS_STATE='EDB_state';
+const LS_FS='EDB_fontsize';
+const LS_EXPORT='EDB_lastexport';
+const FS_STEPS=[75,85,92,100,108,116,125,135,146,158];
+let fsIdx=Number(localStorage.getItem(LS_FS)||3);
+
+function applyFont(){document.documentElement.style.fontSize=FS_STEPS[fsIdx]+'%'}
+applyFont();
+
+window._fsDown=()=>{if(fsIdx>0){fsIdx--;localStorage.setItem(LS_FS,fsIdx);applyFont()}};
+window._fsUp=()=>{if(fsIdx<FS_STEPS.length-1){fsIdx++;localStorage.setItem(LS_FS,fsIdx);applyFont()}};
+
+window._showToast=function(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)};
+
+window._openSettings=()=>{document.getElementById('settingsModal').classList.add('open')};
+window._closeSettings=()=>{document.getElementById('settingsModal').classList.remove('open')};
+window._triggerImport=()=>{window._closeSettings();document.getElementById('file').click()};
+
+window._checkVersion=async()=>{
+  try{
+    const r=await fetch('version.json?_='+Date.now());
+    const d=await r.json();
+    if(d.version===APP_VERSION)window._showToast('Up to date (v'+APP_VERSION+')');
+    else window._showToast('Update available: v'+d.version+' (current: v'+APP_VERSION+')');
+  }catch{window._showToast('Version check failed')}
+};
+
+window._exportData=function(){
+  const blob=new Blob([JSON.stringify({state,settings,history},null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='edifice-draft-board-v'+APP_VERSION+'.json';
+  a.click();
+  localStorage.setItem(LS_EXPORT,Date.now());
+  window._showToast('Exported');
+};
+
+function checkAutoExport(){
+  const last=Number(localStorage.getItem(LS_EXPORT)||0);
+  if(Date.now()-last>4*24*60*60*1000)window._exportData();
+}
+
+// ---- Firebase sync bridge ----
+function renderTopbar(){
+  const u=window._authUser;
+  const el=document.getElementById('tb-auth');
+  if(!el)return;
+  if(u){
+    el.innerHTML='<span class="tb-email">'+u.email+'</span> <button onclick="window._syncNow()">Sync</button> <button onclick="window._signOut()">Sign Out</button>';
+  }else{
+    el.innerHTML='<button onclick="window._signIn()">Sign in with Google</button>';
+  }
+}
+document.addEventListener('authChanged',()=>renderTopbar());
+window._reloadAppState=function(){
+  try{
+    const raw=localStorage.getItem(LS_STATE);
+    if(!raw)return;
+    const saved=JSON.parse(raw);
+    if(saved?.state){
+      state=saved.state;
+      settings={...settings,...saved.settings,scoring:{...DEFAULT_SCORING,...saved.settings?.scoring}};
+      history=saved.history||[];
+    }
+    draw();
+    window._showToast('State refreshed from cloud');
+  }catch{}
+};
+
+// ---- App constants ----
+const SAMPLE=[{"rank":1,"name":"Aaron Judge","primaryPos":"OF","eligible":["OF"],"team":"NYY","base":63,"max":72,"sleeper":false,"notes":"Elite power/OBP anchor."},{"rank":2,"name":"Shohei Ohtani","primaryPos":"DH","eligible":["DH","OF"],"team":"LAD","base":61,"max":70,"sleeper":false,"notes":"Two-way eligibility depends on league platform."},{"rank":3,"name":"Juan Soto","primaryPos":"OF","eligible":["OF"],"team":"NYM","base":58,"max":67,"sleeper":false,"notes":"Premium points-league walk profile."},{"rank":4,"name":"Bobby Witt Jr.","primaryPos":"SS","eligible":["SS"],"team":"KC","base":56,"max":64,"sleeper":false,"notes":"Five-category star with SS scarcity."},{"rank":5,"name":"Ronald Acuna Jr.","primaryPos":"OF","eligible":["OF"],"team":"ATL","base":53,"max":61,"sleeper":false,"notes":"Confirm health and spring workload."},{"rank":6,"name":"Paul Skenes","primaryPos":"SP","eligible":["SP"],"team":"PIT","base":48,"max":56,"sleeper":false,"notes":"Elite strikeout and quality-start ceiling."},{"rank":7,"name":"Tarik Skubal","primaryPos":"SP","eligible":["SP"],"team":"DET","base":46,"max":54,"sleeper":false,"notes":"High-end SP1 for this win/QS scoring."},{"rank":8,"name":"Gunnar Henderson","primaryPos":"SS","eligible":["SS"],"team":"BAL","base":45,"max":53,"sleeper":false,"notes":"Power-speed infielder."},{"rank":9,"name":"Julio Rodriguez","primaryPos":"OF","eligible":["OF"],"team":"SEA","base":43,"max":50,"sleeper":false,"notes":"Power-speed OF anchor."},{"rank":10,"name":"Jose Ramirez","primaryPos":"3B","eligible":["3B"],"team":"CLE","base":42,"max":49,"sleeper":false,"notes":"Elite 3B production."},{"rank":11,"name":"Fernando Tatis Jr.","primaryPos":"OF","eligible":["OF"],"team":"SD","base":41,"max":48,"sleeper":false,"notes":"Power-speed upside."},{"rank":12,"name":"Elly De La Cruz","primaryPos":"SS","eligible":["SS"],"team":"CIN","base":39,"max":46,"sleeper":false,"notes":"High ceiling; strikeout risk matters here."},{"rank":13,"name":"Yordan Alvarez","primaryPos":"OF","eligible":["DH","OF"],"team":"HOU","base":38,"max":45,"sleeper":false,"notes":"DH/OF eligibility varies by platform."},{"rank":14,"name":"Mookie Betts","primaryPos":"2B","eligible":["2B","SS","OF"],"team":"LAD","base":37,"max":44,"sleeper":false,"notes":"Multi-position star."},{"rank":15,"name":"Kyle Tucker","primaryPos":"OF","eligible":["OF"],"team":"CHC","base":36,"max":43,"sleeper":false,"notes":"All-around offense."},{"rank":16,"name":"Francisco Lindor","primaryPos":"SS","eligible":["SS"],"team":"NYM","base":35,"max":41,"sleeper":false,"notes":"Strong points-league floor."},{"rank":17,"name":"Vladimir Guerrero Jr.","primaryPos":"1B","eligible":["1B"],"team":"TOR","base":34,"max":40,"sleeper":false,"notes":"Impact 1B bat."},{"rank":18,"name":"Garrett Crochet","primaryPos":"SP","eligible":["SP"],"team":"BOS","base":33,"max":39,"sleeper":false,"notes":"Workload should be reviewed."},{"rank":19,"name":"Zack Wheeler","primaryPos":"SP","eligible":["SP"],"team":"PHI","base":32,"max":38,"sleeper":false,"notes":"Reliable QS and win upside."},{"rank":20,"name":"Corbin Carroll","primaryPos":"OF","eligible":["OF"],"team":"ARI","base":31,"max":37,"sleeper":false,"notes":"Speed plus improving power."},{"rank":21,"name":"Rafael Devers","primaryPos":"3B","eligible":["3B","DH"],"team":"SF","base":30,"max":36,"sleeper":false,"notes":"Check position eligibility after team change."},{"rank":22,"name":"Logan Gilbert","primaryPos":"SP","eligible":["SP"],"team":"SEA","base":29,"max":35,"sleeper":false,"notes":"Ratio and inning-volume profile."},{"rank":23,"name":"Jackson Chourio","primaryPos":"OF","eligible":["OF"],"team":"MIL","base":28,"max":34,"sleeper":false,"notes":"Young power-speed profile."},{"rank":24,"name":"Austin Riley","primaryPos":"3B","eligible":["3B"],"team":"ATL","base":27,"max":33,"sleeper":false,"notes":"Power-focused 3B."},{"rank":25,"name":"James Wood","primaryPos":"OF","eligible":["OF"],"team":"WAS","base":26,"max":32,"sleeper":false,"notes":"Upside breakout candidate."},{"rank":26,"name":"Trea Turner","primaryPos":"SS","eligible":["SS"],"team":"PHI","base":25,"max":31,"sleeper":false,"notes":"Speed and run-scoring profile."},{"rank":27,"name":"Freddie Freeman","primaryPos":"1B","eligible":["1B"],"team":"LAD","base":24,"max":30,"sleeper":false,"notes":"High floor."},{"rank":28,"name":"Cole Ragans","primaryPos":"SP","eligible":["SP"],"team":"KC","base":23,"max":29,"sleeper":false,"notes":"Strikeout upside."},{"rank":29,"name":"William Contreras","primaryPos":"C","eligible":["C","DH"],"team":"MIL","base":22,"max":28,"sleeper":false,"notes":"Top catching workload."},{"rank":30,"name":"Michael Harris II","primaryPos":"OF","eligible":["OF"],"team":"ATL","base":21,"max":27,"sleeper":true,"notes":"Power-speed sleeper candidate."},{"rank":31,"name":"George Kirby","primaryPos":"SP","eligible":["SP"],"team":"SEA","base":20,"max":26,"sleeper":false,"notes":"Command and QS profile."},{"rank":32,"name":"Jazz Chisholm Jr.","primaryPos":"2B","eligible":["2B","OF"],"team":"NYY","base":19,"max":25,"sleeper":false,"notes":"Multi-position speed/power."},{"rank":33,"name":"Matt Olson","primaryPos":"1B","eligible":["1B"],"team":"ATL","base":18,"max":24,"sleeper":false,"notes":"Power and RBI anchor."},{"rank":34,"name":"Byron Buxton","primaryPos":"OF","eligible":["OF"],"team":"MIN","base":17,"max":23,"sleeper":true,"notes":"Health-sensitive ceiling."},{"rank":35,"name":"Matt McLain","primaryPos":"2B","eligible":["2B"],"team":"CIN","base":16,"max":22,"sleeper":true,"notes":"Infield upside."},{"rank":36,"name":"Josh Hader","primaryPos":"RP","eligible":["RP"],"team":"HOU","base":15,"max":21,"sleeper":false,"notes":"Saves plus strikeouts."},{"rank":37,"name":"Emmanuel Clase","primaryPos":"RP","eligible":["RP"],"team":"CLE","base":15,"max":21,"sleeper":false,"notes":"Elite closer."},{"rank":38,"name":"Mason Miller","primaryPos":"RP","eligible":["RP"],"team":"OAK","base":14,"max":20,"sleeper":false,"notes":"Elite strikeout closer; health risk."},{"rank":39,"name":"Luis Robert Jr.","primaryPos":"OF","eligible":["OF"],"team":"CHW","base":14,"max":20,"sleeper":true,"notes":"Bounce-back power-speed upside."},{"rank":40,"name":"Jarren Duran","primaryPos":"OF","eligible":["OF"],"team":"BOS","base":13,"max":19,"sleeper":false,"notes":"Runs and steals."},{"rank":41,"name":"Adley Rutschman","primaryPos":"C","eligible":["C"],"team":"BAL","base":13,"max":19,"sleeper":false,"notes":"Safe catcher volume."},{"rank":42,"name":"Cal Raleigh","primaryPos":"C","eligible":["C"],"team":"SEA","base":12,"max":18,"sleeper":false,"notes":"Power at catcher."},{"rank":43,"name":"Ketel Marte","primaryPos":"2B","eligible":["2B"],"team":"ARI","base":12,"max":18,"sleeper":false,"notes":"Strong points-league bat."},{"rank":44,"name":"Corey Seager","primaryPos":"SS","eligible":["SS"],"team":"TEX","base":12,"max":18,"sleeper":false,"notes":"Powerful SS."},{"rank":45,"name":"Pete Alonso","primaryPos":"1B","eligible":["1B"],"team":"NYM","base":11,"max":17,"sleeper":false,"notes":"Power/RBI."},{"rank":46,"name":"Pablo Lopez","primaryPos":"SP","eligible":["SP"],"team":"MIN","base":11,"max":17,"sleeper":false,"notes":"Strikeout and ratio value."},{"rank":47,"name":"Framber Valdez","primaryPos":"SP","eligible":["SP"],"team":"HOU","base":10,"max":16,"sleeper":false,"notes":"Innings and quality starts."},{"rank":48,"name":"Sonny Gray","primaryPos":"SP","eligible":["SP"],"team":"STL","base":10,"max":16,"sleeper":false,"notes":"Reliable rotation slot."},{"rank":49,"name":"Aroldis Chapman","primaryPos":"RP","eligible":["RP"],"team":"BOS","base":9,"max":15,"sleeper":false,"notes":"Saves/strikeout upside."},{"rank":50,"name":"Andres Munoz","primaryPos":"RP","eligible":["RP"],"team":"SEA","base":9,"max":15,"sleeper":false,"notes":"High-leverage closer."},{"rank":51,"name":"Oneil Cruz","primaryPos":"SS","eligible":["SS"],"team":"PIT","base":8,"max":14,"sleeper":true,"notes":"Volatile ceiling."},{"rank":52,"name":"Junior Caminero","primaryPos":"3B","eligible":["3B"],"team":"TB","base":8,"max":14,"sleeper":true,"notes":"Breakout power candidate."},{"rank":53,"name":"Wyatt Langford","primaryPos":"OF","eligible":["OF"],"team":"TEX","base":8,"max":14,"sleeper":true,"notes":"Sophomore breakout candidate."},{"rank":54,"name":"Spencer Schwellenbach","primaryPos":"SP","eligible":["SP"],"team":"ATL","base":7,"max":13,"sleeper":true,"notes":"Command-focused sleeper."},{"rank":55,"name":"Jacob Misiorowski","primaryPos":"SP","eligible":["SP"],"team":"MIL","base":7,"max":13,"sleeper":true,"notes":"Strikeout upside; workload risk."},{"rank":56,"name":"Hunter Greene","primaryPos":"SP","eligible":["SP"],"team":"CIN","base":7,"max":13,"sleeper":false,"notes":"Velocity/strikeout upside."},{"rank":57,"name":"Bryce Miller","primaryPos":"SP","eligible":["SP"],"team":"SEA","base":6,"max":12,"sleeper":false,"notes":"Quality-start upside."},{"rank":58,"name":"Will Smith","primaryPos":"C","eligible":["C","DH"],"team":"LAD","base":6,"max":12,"sleeper":false,"notes":"Stable C option."},{"rank":59,"name":"Christian Walker","primaryPos":"1B","eligible":["1B"],"team":"HOU","base":6,"max":12,"sleeper":false,"notes":"Power corner infielder."},{"rank":60,"name":"Nico Hoerner","primaryPos":"2B","eligible":["2B"],"team":"CHC","base":5,"max":11,"sleeper":false,"notes":"Speed and contact."},{"rank":61,"name":"Alex Bregman","primaryPos":"3B","eligible":["3B"],"team":"BOS","base":5,"max":11,"sleeper":false,"notes":"Points-friendly OBP profile."},{"rank":62,"name":"CJ Abrams","primaryPos":"SS","eligible":["SS"],"team":"WAS","base":5,"max":11,"sleeper":false,"notes":"Speed ceiling."},{"rank":63,"name":"Teoscar Hernandez","primaryPos":"OF","eligible":["OF"],"team":"LAD","base":5,"max":11,"sleeper":false,"notes":"Power outfielder."},{"rank":64,"name":"Seiya Suzuki","primaryPos":"OF","eligible":["OF","DH"],"team":"CHC","base":4,"max":10,"sleeper":false,"notes":"Strong DH/OF bat."},{"rank":65,"name":"Brent Rooker","primaryPos":"OF","eligible":["OF"],"team":"OAK","base":4,"max":10,"sleeper":false,"notes":"Power and walks."},{"rank":66,"name":"Camilo Doval","primaryPos":"RP","eligible":["RP"],"team":"SF","base":4,"max":10,"sleeper":false,"notes":"Save upside; role volatility."},{"rank":67,"name":"Ryan Helsley","primaryPos":"RP","eligible":["RP"],"team":"STL","base":4,"max":10,"sleeper":false,"notes":"Closer value."},{"rank":68,"name":"Tanner Bibee","primaryPos":"SP","eligible":["SP"],"team":"CLE","base":4,"max":10,"sleeper":false,"notes":"SP2 upside."},{"rank":69,"name":"Bailey Ober","primaryPos":"SP","eligible":["SP"],"team":"MIN","base":3,"max":9,"sleeper":false,"notes":"Efficient innings."},{"rank":70,"name":"Tyler Glasnow","primaryPos":"SP","eligible":["SP"],"team":"LAD","base":3,"max":9,"sleeper":false,"notes":"Elite per-start upside; health risk."},{"rank":71,"name":"Josh Naylor","primaryPos":"1B","eligible":["1B"],"team":"ARI","base":3,"max":9,"sleeper":false,"notes":"Points-friendly contact/power."},{"rank":72,"name":"Maikel Garcia","primaryPos":"3B","eligible":["3B","SS"],"team":"KC","base":3,"max":9,"sleeper":false,"notes":"Speed/position flexibility."},{"rank":73,"name":"Masyn Winn","primaryPos":"SS","eligible":["SS"],"team":"STL","base":3,"max":9,"sleeper":false,"notes":"Speed and growth candidate."},{"rank":74,"name":"Lawrence Butler","primaryPos":"OF","eligible":["OF"],"team":"OAK","base":3,"max":9,"sleeper":true,"notes":"Power-speed upside."},{"rank":75,"name":"Yainer Diaz","primaryPos":"C","eligible":["C"],"team":"HOU","base":2,"max":8,"sleeper":false,"notes":"Catcher batting average/power."},{"rank":76,"name":"Shota Imanaga","primaryPos":"SP","eligible":["SP"],"team":"CHC","base":2,"max":8,"sleeper":false,"notes":"Ratios and wins."},{"rank":77,"name":"Robert Suarez","primaryPos":"RP","eligible":["RP"],"team":"SD","base":2,"max":8,"sleeper":false,"notes":"Saves."},{"rank":78,"name":"Jhoan Duran","primaryPos":"RP","eligible":["RP"],"team":"MIN","base":2,"max":8,"sleeper":false,"notes":"High-leverage relief."},{"rank":79,"name":"Brandon Nimmo","primaryPos":"OF","eligible":["OF"],"team":"NYM","base":2,"max":8,"sleeper":false,"notes":"Walk-heavy points profile."},{"rank":80,"name":"Jordan Westburg","primaryPos":"2B","eligible":["2B","3B"],"team":"BAL","base":2,"max":8,"sleeper":false,"notes":"Multi-position production."},{"rank":81,"name":"Eugenio Suarez","primaryPos":"3B","eligible":["3B"],"team":"ARI","base":2,"max":8,"sleeper":false,"notes":"Power with strikeout cost."},{"rank":82,"name":"Bryan Reynolds","primaryPos":"OF","eligible":["OF"],"team":"PIT","base":2,"max":8,"sleeper":false,"notes":"Steady OF floor."},{"rank":83,"name":"Steven Kwan","primaryPos":"OF","eligible":["OF"],"team":"CLE","base":1,"max":7,"sleeper":false,"notes":"Contact/OBP profile."},{"rank":84,"name":"Roki Sasaki","primaryPos":"SP","eligible":["SP"],"team":"LAD","base":1,"max":7,"sleeper":true,"notes":"Talent with adaptation/workload risk."},{"rank":85,"name":"Reid Detmers","primaryPos":"SP","eligible":["SP"],"team":"LAA","base":1,"max":7,"sleeper":true,"notes":"Strikeout sleeper."},{"rank":86,"name":"Clay Holmes","primaryPos":"RP","eligible":["RP"],"team":"NYM","base":1,"max":7,"sleeper":false,"notes":"Role must be confirmed."},{"rank":87,"name":"Ryan Walker","primaryPos":"RP","eligible":["RP"],"team":"SF","base":1,"max":7,"sleeper":false,"notes":"Late-inning upside."},{"rank":88,"name":"Ben Rice","primaryPos":"1B","eligible":["1B"],"team":"NYY","base":1,"max":7,"sleeper":true,"notes":"Power breakout candidate."},{"rank":89,"name":"Colson Montgomery","primaryPos":"SS","eligible":["SS"],"team":"CHW","base":1,"max":7,"sleeper":true,"notes":"Youth/upside at SS."}];
+
+const POS=['All','C','1B','2B','3B','SS','OF','DH','U','SP','RP'];
+const ACTIVE=['C','1B','2B','3B','SS','OF1','OF2','OF3','DH','U','SP1','SP2','SP3','SP4','RP1','RP2'];
+const HITTER=['C','1B','2B','3B','SS','OF','DH'];
+const DEFAULT_SCORING={single:1,double:2,triple:3,bb:1,ci:1,cs:-1,csc:1,cycle:5,error:-1,gdp:-1,hbp:1,hr:4,ibb:.5,ko:-1,ofast:1,r:1,rbi:1,sb:1,sh:.3,balk:-.5,bs:-4,cg:8,er:-1,hold:2,inn:1,irs:-.5,k:.5,loss:-5,nh:10,pg:15,qs:4,save:4,shutout:3,winSp:8,winRp:4,wp:-.5};
+const SCORE_LABELS=[['single','Singles'],['double','Doubles'],['triple','Triples'],['bb','Walks (Batters)'],['ci','Catcher Interference'],['cs','Caught Stealing'],['csc','Caught Stealing by Catcher'],['cycle','Hitting for the Cycle'],['error','Errors'],['gdp','Ground Into Double Plays'],['hbp','Hit by Pitch'],['hr','Home Runs'],['ibb','Intentional Walks'],['ko','Strikeouts (Batter)'],['ofast','OF Assists'],['r','Runs'],['rbi','Runs Batted In'],['sb','Stolen Bases'],['sh','Sacrifice Hits'],['balk','Balks'],['bs','Blown Saves'],['cg','Complete Games'],['er','Earned Runs'],['hold','Holds'],['inn','Innings'],['irs','Inherited Runners Scored'],['k','Strikeouts (Pitcher)'],['loss','Losses'],['nh','No-Hitters'],['pg','Perfect Games'],['qs','Quality Starts'],['save','Saves'],['shutout','Shutouts'],['winSp','Wins - Starting Pitchers'],['winRp','Wins - Relief Pitchers'],['wp','Wild Pitches']];
+
+// ---- State init ----
+// migrate old key
+if(!localStorage.getItem(LS_STATE)&&localStorage.getItem('edifice-draft-board-v1')){
+  localStorage.setItem(LS_STATE,localStorage.getItem('edifice-draft-board-v1'));
+}
+let tab='board',view='players',filter='All',sort='max',dir=-1,history=[];
+let settings={season:2026,totalBudget:225,trades:0,scoring:structuredClone(DEFAULT_SCORING)};
+let state=structuredClone(SAMPLE);
+try{
+  const saved=JSON.parse(localStorage.getItem(LS_STATE));
+  if(saved?.state){
+    state=saved.state;
+    settings={...settings,...saved.settings,scoring:{...DEFAULT_SCORING,...saved.settings?.scoring}};
+    history=saved.history||[];
+  }
+}catch{}
+
+// ---- Utilities ----
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=x=>'$'+Number(x||0).toLocaleString();
+const idd=p=>encodeURIComponent(p.name);
+const getp=n=>state.find(p=>p.name===decodeURIComponent(n));
+const avail=()=>state.filter(p=>p.status!=='Taken'&&p.status!=='Picked');
+const roster=()=>state.filter(p=>p.status==='Picked');
+const keepers=()=>roster().filter(p=>p.keeper);
+const keeperTotal=()=>keepers().reduce((a,p)=>a+Number(p.salary||0),0);
+const draftBudget=()=>Number(settings.totalBudget)-Number(settings.trades)-keeperTotal();
+const spent=()=>roster().filter(p=>!p.keeper).reduce((a,p)=>a+Number(p.salary||0),0);
+const saveState=()=>{
+  const payload=JSON.stringify({state,settings,history,ts:Date.now()});
+  localStorage.setItem(LS_STATE,payload);
+};
+
+function snap(){history.push(JSON.stringify({state,settings}));if(history.length>1)history.shift()}
+function undo(){if(!history.length)return;const last=JSON.parse(history.pop());state=last.state;settings=last.settings;saveState();draw()}
+function eligible(p,pos){if(pos==='All')return true;if(pos==='U')return p.eligible.some(x=>HITTER.includes(x));return p.eligible.includes(pos)}
+function slotsFor(p){let a=[];for(const s of ACTIVE){const pos=s.replace(/[0-9]/g,'');if(eligible(p,pos))a.push(s)}return a}
+function firstOpenSlot(p){return slotsFor(p).find(s=>!roster().some(x=>x.slot===s))||'RES'}
+
+function action(kind,n){
+  const p=getp(n);if(!p)return;snap();
+  if(kind==='take')p.status='Taken';
+  if(kind==='pick'){
+    if(roster().length>=22){history.pop();alert('Roster is at its 22-player maximum.');return}
+    p.status='Picked';p.salary=p.salary??0;p.slot=firstOpenSlot(p);p.pickOrder=Date.now();
+  }
+  saveState();draw();
+}
+
+function header(){
+  document.getElementById('budget').textContent=money(draftBudget()-spent());
+  document.getElementById('count').textContent=roster().length+' / 22';
+  document.getElementById('slots').textContent=22-roster().length;
+  document.getElementById('shown').textContent=avail().length;
+  document.getElementById('tabs').innerHTML=
+    '<button class="tab '+(tab==='board'?'active':'')+'" data-tab="board">Draft Board</button>'+
+    '<button class="tab '+(tab==='settings'?'active':'')+'" data-tab="settings">League Settings</button>'+
+    '<button class="action undo" data-action="undo" '+(history.length?'':'disabled')+'>Undo Last Action</button>';
+}
+
+function picker(){
+  return '<div class="toolbar">'+
+    POS.map(x=>'<button class="filter '+(filter===x&&view==='players'?'active':'')+'" data-filter="'+x+'">'+x+'</button>').join('')+
+    '<button class="filter tool-link" data-action="sleepers">Sleepers</button>'+
+    '<button class="filter" data-action="best">Best Available</button>'+
+    '<button class="filter" data-action="roster">My Roster</button></div>';
+}
+
+function buttons(p){
+  return '<div class="rowbuttons">'+
+    '<button class="action taken" data-action="take" data-name="'+idd(p)+'">Taken</button>'+
+    '<button class="action picked" data-action="pick" data-name="'+idd(p)+'">Picked</button></div>';
+}
+
+function playerTable(list,title){
+  return '<div class="panel"><h2>'+title+'</h2><div class="tablewrap"><table><thead><tr>'+
+    '<th class="sort" data-sort="rank">#</th>'+
+    '<th class="sort" data-sort="name">Player</th>'+
+    '<th>Pos</th><th>Team</th><th>Notes</th><th>Sleeper</th>'+
+    '<th class="sort money" data-sort="max">Max $</th><th>Action</th></tr></thead><tbody>'+
+    list.map(p=>
+      '<tr><td class="rank">'+p.rank+'</td>'+
+      '<td><b>'+esc(p.name)+'</b></td>'+
+      '<td class="pos">'+esc(p.eligible.join('/'))+'</td>'+
+      '<td>'+esc(p.team)+'</td>'+
+      '<td class="notes">'+esc(p.notes)+'</td>'+
+      '<td>'+(p.sleeper?'<span class="zzz">ZZZ</span>':'--')+'</td>'+
+      '<td class="money">'+money(p.max)+'</td>'+
+      '<td>'+buttons(p)+'</td></tr>'
+    ).join('')+'</tbody></table></div></div>';
+}
+
+function board(){
+  if(view==='sleepers')return picker()+playerTable(avail().filter(p=>p.sleeper).sort((a,b)=>b.max-a.max),'Available Consensus Sleepers');
+  if(view==='best')return picker()+best();
+  if(view==='roster')return picker()+rosterView();
+  const list=avail().filter(p=>eligible(p,filter)).sort((a,b)=>typeof a[sort]==='string'?a[sort].localeCompare(b[sort])*dir:(Number(a[sort])-Number(b[sort]))*dir);
+  return picker()+playerTable(list,filter==='All'?'All Players - Suggested Max $':filter+' Eligible Players - Suggested Max $');
+}
+
+function best(){
+  return '<div class="best-grid">'+POS.slice(1).filter(p=>p!=='U').map(pos=>{
+    const top=avail().filter(p=>eligible(p,pos)).sort((a,b)=>b.max-a.max).slice(0,3);
+    return '<div class="panel best-card"><h3>'+pos+'</h3>'+
+      top.map(p=>'<div class="best-row"><b>'+esc(p.name)+'</b>'+(p.sleeper?'<span class="zzz">ZZZ</span>':'')+
+        '<small>'+esc(p.eligible.join('/'))+'  '+esc(p.team)+'  '+money(p.max)+'</small>'+buttons(p)+'</div>').join('')+'</div>';
+  }).join('')+'</div>';
+}
+
+function rosterView(){
+  const bySlot=Object.fromEntries(ACTIVE.map(s=>[s,[]]));
+  const reserves=[];
+  for(const p of roster()){if(ACTIVE.includes(p.slot))bySlot[p.slot].push(p);else reserves.push(p)}
+  const line=(label,items)=>'<div class="slot"><b>'+label+'</b>'+
+    items.map(p=>'<div><b>'+esc(p.name)+'</b><small>'+esc(p.eligible.join('/'))+'  '+esc(p.team)+'  '+money(p.salary)+'</small>'+slotSelect(p)+'</div>').join('')+
+    (items.length?'':'<div class="empty">Open slot</div>')+'</div>';
+  const active=ACTIVE.map(s=>line(s,bySlot[s])).join('');
+  return '<div class="layout">'+
+    '<div class="panel"><h2>Active Lineup (16)</h2><div class="inside">'+active+'</div></div>'+
+    '<div class="panel"><h2>Reserves (6)</h2><div class="inside">'+
+    reserves.map(p=>'<div class="slot"><b>'+esc(p.name)+'</b><small>'+esc(p.eligible.join('/'))+'  '+esc(p.team)+'  '+money(p.salary)+'</small>'+slotSelect(p)+'</div>').join('')+
+    (reserves.length?'<p class="help">Move a player to an eligible active slot when ready.</p>':'<p class="empty">Open reserve slots</p>')+
+    '</div></div></div>';
+}
+
+function slotSelect(p){
+  const opts=['RES',...slotsFor(p)];
+  return '<select data-slot="'+idd(p)+'">'+opts.map(s=>'<option value="'+s+'" '+(p.slot===s?'selected':'')+'>'+(s==='RES'?'Reserve':s)+'</option>').join('')+'</select>'+
+    '<input type="number" data-salary="'+idd(p)+'" value="'+Number(p.salary||0)+'" aria-label="Salary for '+esc(p.name)+'">';
+}
+
+function buildPrompt(){
+  const scoring=SCORE_LABELS.map(([k,l])=>'- '+l+': '+settings.scoring[k]).join('\n');
+  const k=keepers().map(p=>p.name+' ('+p.eligible.join('/')+', '+p.team+') $'+p.salary).join('; ')||'None';
+  return 'Build a comprehensive '+settings.season+' MLB player board for Edifice Draft Board. Research the latest available expert consensus rankings, points-league projections, $225 auction values, spring training or current-season depth charts, confirmed roles, injuries, and closer situations. Prefer cross-checking FantasyPros, Fantrax, RotoWire, ESPN, CBS Sports, NFBC/ADP data, Statcast, and official MLB team news. Rank for this exact head-to-head weekly points system, not roto or 5x5.\n\nLEAGUE: 12 teams; $'+settings.totalBudget+' total budget; trades '+settings.trades+' (positive cash sent, negative received); keeper salaries $'+keeperTotal()+'; draft budget $'+draftBudget()+'; roster 22 total = 16 active + 6 reserves. Active slots: C, 1B, 2B, 3B, SS, 3 OF, DH, U (hitter only), 4 SP, 2 RP. Eligibility: hitters use primary position plus 20 games last year or 5 games this year; SP requires 5 starts last year/this year; RP requires 10 relief appearances last year/this year. Player pool: all MLB AL/NL players. Keepers: '+k+'.\n\nSCORING:\n'+scoring+'\n\nVALUES: base is an integer neutral-market $225 auction estimate. max is the recommended integer maximum bid under this exact scoring and current draft budget. Give extra weight to walks, runs/RBI, total bases, innings, wins, quality starts, saves, holds, and the separate SP/RP win values.\n\nCOMPLETENESS: Return at least 375 meaningful draft candidates, including MLB regulars, closers, setup relievers with holds paths, starting pitchers, prospects with plausible 2026 impact, injured-return candidates, handcuffs, and upside reserves. Each player must list primaryPos and all current eligible positions.\n\nSLEEPERS: Identify consensus sleeper/value selections from credible current sources: ideally 8-15 hitters and 8-15 pitchers/relievers. Set sleeper:true only for consensus sleepers.\n\nOUTPUT: JSON only, no Markdown or commentary. Exact schema: {"season":'+settings.season+',"players":[{"rank":1,"name":"Player Name","primaryPos":"OF","eligible":["OF"],"team":"ABC","base":42,"max":48,"sleeper":false,"notes":"Brief role/injury/eligibility note."}]}. Valid positions: C,1B,2B,3B,SS,OF,DH,SP,RP. rank/base/max must be integers; max >= base; ranks must be unique and consecutive from 1; no duplicate player names; use three-letter MLB team abbreviations. Silently validate before returning.';
+}
+
+function settingsView(){
+  const keep=keepers();
+  const score=SCORE_LABELS.map(([k,l])=>'<div class="setting-grid"><label>'+l+'</label><input data-score="'+k+'" type="number" step="0.1" value="'+settings.scoring[k]+'"></div>').join('');
+  return '<div class="settings">'+
+    '<div class="panel"><h2>League Settings</h2><div class="inside">'+
+    '<div class="setting-grid"><label>Season year</label><input data-setting="season" type="number" value="'+settings.season+'"></div>'+
+    '<div class="setting-grid"><label>Total Budget</label><input data-setting="totalBudget" type="number" value="'+settings.totalBudget+'"></div>'+
+    '<div class="setting-grid"><label>Trades from last season</label><input data-setting="trades" type="number" value="'+settings.trades+'"></div>'+
+    '<div class="setting-grid"><label>Keeper Salaries</label><input disabled value="'+money(keeperTotal())+'"></div>'+
+    '<div class="setting-grid"><label>Draft Budget</label><input disabled value="'+money(draftBudget())+'"></div>'+
+    '<p class="help">Draft Budget = Total Budget - Trades - Keeper Salaries. Positive trades mean cash sent; negative trades mean cash received.</p>'+
+    '<div class="section-label">Keepers</div>'+
+    keep.map(p=>
+      '<div class="keeper-row">'+
+      '<input data-kfield="name" data-name="'+idd(p)+'" value="'+esc(p.name)+'">'+
+      '<input data-kfield="primaryPos" data-name="'+idd(p)+'" value="'+esc(p.primaryPos)+'">'+
+      '<input data-kfield="team" data-name="'+idd(p)+'" value="'+esc(p.team)+'">'+
+      '<input data-salary="'+idd(p)+'" type="number" value="'+p.salary+'">'+
+      '<button class="action taken" data-action="removeK" data-name="'+idd(p)+'">Remove</button></div>'
+    ).join('')+
+    '<button class="action" data-action="addK">Add Keeper</button>'+
+    '<div class="section-label">JSON import/export</div>'+
+    '<textarea id="json" placeholder="Paste player JSON to import" style="min-height:150px"></textarea>'+
+    '<p><button class="action" data-action="import">Import Players</button>'+
+    '<button class="action" data-action="choose">Choose JSON File</button>'+
+    '<button class="action reset" data-action="reset">Reset Draft</button></p>'+
+    '<p><button class="action" data-action="export">Export Prompt</button>'+
+    '<button class="action" data-action="copy">Copy Prompt</button></p>'+
+    '<textarea id="promptbox" placeholder="Generated prompt appears here" style="min-height:150px"></textarea>'+
+    '</div></div>'+
+    '<div class="panel"><h2>Scoring Parameters</h2><div class="inside">'+score+'</div></div></div>';
+}
+
+function normalize(data){
+  const a=Array.isArray(data)?data:data?.players;
+  if(!Array.isArray(a)||!a.length)throw Error('JSON needs a non-empty players array.');
+  const ranks=new Set(),names=new Set();
+  return a.map((x,i)=>{
+    const eligible=Array.isArray(x.eligible)?x.eligible.map(String):[String(x.primaryPos||x.pos||'').toUpperCase()];
+    const primary=String(x.primaryPos||x.pos||eligible[0]).toUpperCase();
+    if(!x.name||!['C','1B','2B','3B','SS','OF','DH','SP','RP'].includes(primary)||!eligible.length||eligible.some(p=>!['C','1B','2B','3B','SS','OF','DH','SP','RP'].includes(p)))throw Error('Invalid name or position for player '+(i+1));
+    const rank=Number(x.rank);
+    if(!Number.isInteger(rank)||ranks.has(rank))throw Error('Ranks must be unique integers.');
+    ranks.add(rank);
+    if(names.has(x.name))throw Error('Duplicate player name: '+x.name);
+    names.add(x.name);
+    const base=Number(x.base),max=Number(x.max);
+    if(!Number.isInteger(base)||!Number.isInteger(max)||max<base)throw Error('base/max must be integers and max >= base.');
+    return{rank,name:String(x.name),primaryPos:primary,eligible,team:String(x.team||''),base,max,sleeper:!!x.sleeper,notes:String(x.notes||''),status:'Available',salary:null,keeper:false,slot:'RES'};
+  });
+}
+
+function draw(){header();document.getElementById('view').innerHTML=tab==='board'?board():settingsView()}
+
+function importData(text){
+  try{
+    const x=normalize(JSON.parse(text));snap();state=x;history=[];saveState();tab='board';view='players';draw();
+    alert('Imported '+x.length+' players.');
+  }catch(e){alert('Import failed: '+e.message)}
+}
+
+// ---- Events ----
+document.addEventListener('click',e=>{
+  // sort header clicks (th[data-sort]) — must check before button guard
+  const h=e.target.closest('[data-sort]');
+  if(h){const s=h.dataset.sort;dir=sort===s?-dir:-1;sort=s;draw();return}
+  const b=e.target.closest('button');
+  if(!b)return;
+  if(b.dataset.tab){tab=b.dataset.tab;draw();return}
+  if(b.dataset.filter){filter=b.dataset.filter;view='players';draw();return}
+  if(b.dataset.action==='take')action('take',b.dataset.name);
+  if(b.dataset.action==='pick')action('pick',b.dataset.name);
+  if(b.dataset.action==='undo')undo();
+  if(b.dataset.action==='sleepers'){view='sleepers';tab='board';draw()}
+  if(b.dataset.action==='best'){view='best';tab='board';draw()}
+  if(b.dataset.action==='roster'){view='roster';tab='board';draw()}
+  if(b.dataset.action==='reset'&&confirm('Reset draft and restore the sample board?')){state=structuredClone(SAMPLE);history=[];saveState();tab='board';view='players';draw()}
+  if(b.dataset.action==='addK'){snap();state.push({rank:9999,name:'New Keeper '+state.length,primaryPos:'OF',eligible:['OF'],team:'TBD',base:0,max:0,sleeper:false,notes:'Keeper--already rostered; do not nominate.',status:'Picked',salary:0,keeper:true,slot:'RES'});saveState();draw()}
+  if(b.dataset.action==='removeK'){snap();const p=getp(b.dataset.name);p.keeper=false;p.status='Available';p.salary=null;p.slot='RES';saveState();draw()}
+  if(b.dataset.action==='import')importData(document.getElementById('json').value);
+  if(b.dataset.action==='choose')document.getElementById('file').click();
+  if(b.dataset.action==='export'){
+    const text=buildPrompt();
+    document.getElementById('promptbox').value=text;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));
+    a.download='edifice-draft-board-prompt.txt';a.click();
+  }
+  if(b.dataset.action==='copy'){
+    const text=buildPrompt();
+    const box=document.getElementById('promptbox');box.value=text;box.focus();box.select();
+    navigator.clipboard?.writeText(text).catch(()=>document.execCommand('copy'));
+  }
+});
+
+document.addEventListener('change',e=>{
+  if(e.target.dataset.salary){snap();getp(e.target.dataset.salary).salary=Number(e.target.value)||0;saveState();draw()}
+  if(e.target.dataset.slot){
+    const p=getp(e.target.dataset.slot),slot=e.target.value;
+    if(slot!=='RES'&&roster().some(x=>x!==p&&x.slot===slot)){alert(slot+' is already occupied.');draw();return}
+    snap();p.slot=slot;saveState();draw();
+  }
+  if(e.target.dataset.setting){snap();settings[e.target.dataset.setting]=Number(e.target.value)||0;saveState();draw()}
+  if(e.target.dataset.score){snap();settings.scoring[e.target.dataset.score]=Number(e.target.value)||0;saveState();draw()}
+  if(e.target.dataset.kfield){snap();const p=getp(e.target.dataset.name);p[e.target.dataset.kfield]=e.target.value;if(e.target.dataset.kfield==='primaryPos'&&!p.eligible.includes(e.target.value))p.eligible=[e.target.value];saveState();draw()}
+  if(e.target.id==='file'&&e.target.files[0]){const r=new FileReader();r.onload=()=>importData(r.result);r.readAsText(e.target.files[0])}
+});
+
+// ---- Init ----
+document.getElementById('versionLabel').textContent=APP_VERSION;
+renderTopbar();
+draw();
+checkAutoExport();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+</script>
+</body></html>
