@@ -41,4 +41,5 @@ CONTEXT.md
 ## Version History
 | Version | Changes |
 |---------|---------|
+| 1.1 | Conflict modal replaces confirm(), history limit 1→20, salary validation, _syncNow guard+toast, import toast, roster-full toast, export version field, Firebase 10.12.2 |
 | 1.0 | Initial release — full PWA with Firebase sync, consolidated from source |

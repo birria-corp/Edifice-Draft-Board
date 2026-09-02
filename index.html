@@ -3,12 +3,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Edifice Draft Board</title>
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png">
 <meta name="theme-color" content="#08130e">
 <script type="module">
-import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import{getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 const firebaseConfig={apiKey:"AIzaSyCrTmJNohK-7_t2BHx70HA6AfLmZyryLUY",authDomain:"zeptrack-f8720.firebaseapp.com",projectId:"zeptrack-f8720",storageBucket:"zeptrack-f8720.firebasestorage.app",messagingSenderId:"791166858370",appId:"1:791166858370:web:9ccf77cdad85cb3689b09b"};
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
@@ -16,7 +16,7 @@ const db=getFirestore(app);
 const provider=new GoogleAuthProvider();
 window._signIn=async()=>{try{await signInWithPopup(auth,provider)}catch(e){console.error(e)}};
 window._signOut=async()=>{try{await signOut(auth)}catch(e){console.error(e)}};
-window._syncNow=async()=>{const u=window._authUser;if(!u)return;await runSync(u.uid)};
+window._syncNow=async()=>{const u=window._authUser;if(!u){window._showToast&&window._showToast('Not signed in.');return;}window._showToast&&window._showToast('Syncing...');await runSync(u.uid)};
 async function runSync(uid){
   const ref=doc(db,'users',uid,'data','EDB_state');
   const local=localStorage.getItem('EDB_state');
@@ -28,7 +28,7 @@ async function runSync(uid){
         const rl=JSON.parse(remote),ll=local?JSON.parse(local):null;
         const rt=rl?.ts||0,lt=ll?.ts||0;
         if(rt>lt){
-          const use=confirm('Cloud save is newer. Load cloud version?\n\nOK = Load cloud  |  Cancel = Keep local');
+          const use=await(window._conflictModal?window._conflictModal(remote,local):Promise.resolve(true));
           if(use){localStorage.setItem('EDB_state',remote);if(window._reloadAppState)window._reloadAppState();window._showToast&&window._showToast('Loaded cloud save');return}
         }
       }
@@ -125,6 +125,17 @@ tr:hover{background:#193725}.rank,.money{text-align:right;font-variant-numeric:t
   </div>
 </div>
 
+<div id="conflictModal" class="modal-overlay">
+  <div class="modal-box">
+    <h3>&#9729; Sync Conflict</h3>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 8px">Cloud save is newer than local data. Which version do you want to keep?</p>
+    <div id="conflictDates" style="font-size:12px;color:var(--muted);margin:0 0 14px"></div>
+    <div class="modal-btns">
+      <button id="conflictCloud">Use Cloud</button>
+      <button id="conflictLocal">Keep Local</button>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <header><h1>Edifice Draft Board</h1><p>12-team baseball keeper auction board with position eligibility, roster slots, scoring-aware values, and future-season imports.</p></header>
@@ -141,7 +152,7 @@ tr:hover{background:#193725}.rank,.money{text-align:right;font-variant-numeric:t
 <input id="file" class="hidden" type="file" accept="application/json,.json">
 
 <script>
-const APP_VERSION='1.0';
+const APP_VERSION='1.1';
 const LS_STATE='EDB_state';
 const LS_FS='EDB_fontsize';
 const LS_EXPORT='EDB_lastexport';
@@ -158,6 +169,7 @@ window._showToast=function(msg){const t=document.getElementById('toast');t.textC
 
 window._openSettings=()=>{document.getElementById('settingsModal').classList.add('open')};
 window._closeSettings=()=>{document.getElementById('settingsModal').classList.remove('open')};
+window._conflictModal=function(cloud,local){return new Promise(resolve=>{let cd='',ld='';try{const c=JSON.parse(cloud);if(c.ts)cd=new Date(c.ts).toLocaleString();}catch{}try{const l=JSON.parse(local);if(l.ts)ld=new Date(l.ts).toLocaleString();}catch{}const el=document.getElementById('conflictDates');if(el)el.innerHTML=(cd?'Cloud: '+cd:'No cloud timestamp')+(ld?'<br>Local: '+ld:'');document.getElementById('conflictModal').classList.add('open');document.getElementById('conflictCloud').onclick=()=>{document.getElementById('conflictModal').classList.remove('open');resolve(true);};document.getElementById('conflictLocal').onclick=()=>{document.getElementById('conflictModal').classList.remove('open');resolve(false);};});};
 window._triggerImport=()=>{window._closeSettings();document.getElementById('file').click()};
 
 window._checkVersion=async()=>{
@@ -170,7 +182,7 @@ window._checkVersion=async()=>{
 };
 
 window._exportData=function(){
-  const blob=new Blob([JSON.stringify({state,settings,history},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({version:APP_VERSION,state,settings,history},null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='edifice-draft-board-v'+APP_VERSION+'.json';
@@ -253,7 +265,7 @@ const saveState=()=>{
   localStorage.setItem(LS_STATE,payload);
 };
 
-function snap(){history.push(JSON.stringify({state,settings}));if(history.length>1)history.shift()}
+function snap(){history.push(JSON.stringify({state,settings}));if(history.length>20)history.shift()}
 function undo(){if(!history.length)return;const last=JSON.parse(history.pop());state=last.state;settings=last.settings;saveState();draw()}
 function eligible(p,pos){if(pos==='All')return true;if(pos==='U')return p.eligible.some(x=>HITTER.includes(x));return p.eligible.includes(pos)}
 function slotsFor(p){let a=[];for(const s of ACTIVE){const pos=s.replace(/[0-9]/g,'');if(eligible(p,pos))a.push(s)}return a}
@@ -263,7 +275,7 @@ function action(kind,n){
   const p=getp(n);if(!p)return;snap();
   if(kind==='take')p.status='Taken';
   if(kind==='pick'){
-    if(roster().length>=22){history.pop();alert('Roster is at its 22-player maximum.');return}
+    if(roster().length>=22){history.pop();window._showToast&&window._showToast('Roster full (22-player max).');return}
     p.status='Picked';p.salary=p.salary??0;p.slot=firstOpenSlot(p);p.pickOrder=Date.now();
   }
   saveState();draw();
@@ -414,7 +426,7 @@ function draw(){header();document.getElementById('view').innerHTML=tab==='board'
 function importData(text){
   try{
     const x=normalize(JSON.parse(text));snap();state=x;history=[];saveState();tab='board';view='players';draw();
-    alert('Imported '+x.length+' players.');
+    window._showToast('Imported '+x.length+' players.');
   }catch(e){alert('Import failed: '+e.message)}
 }
 
@@ -453,7 +465,7 @@ document.addEventListener('click',e=>{
 });
 
 document.addEventListener('change',e=>{
-  if(e.target.dataset.salary){snap();getp(e.target.dataset.salary).salary=Number(e.target.value)||0;saveState();draw()}
+  if(e.target.dataset.salary){const p=getp(e.target.dataset.salary);const v=Number(e.target.value);if(isNaN(v)||v<0){window._showToast('Invalid salary — must be 0 or more.');e.target.value=p?.salary??0;return;}snap();if(p){p.salary=v;saveState();draw()}}
   if(e.target.dataset.slot){
     const p=getp(e.target.dataset.slot),slot=e.target.value;
     if(slot!=='RES'&&roster().some(x=>x!==p&&x.slot===slot)){alert(slot+' is already occupied.');draw();return}
